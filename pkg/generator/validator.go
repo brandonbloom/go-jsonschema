@@ -33,6 +33,7 @@ var (
 	_ validator = new(requiredValidator)
 	_ validator = new(readOnlyValidator)
 	_ validator = new(unevaluatedPropertiesFalseValidator)
+	_ validator = new(unevaluatedPropertiesSchemaValidator)
 	_ validator = new(nullTypeValidator)
 	_ validator = new(defaultValidator)
 	_ validator = new(arrayValidator)
@@ -136,6 +137,68 @@ func (v *unevaluatedPropertiesFalseValidator) generate(out *codegen.Emitter, for
 }
 
 func (v *unevaluatedPropertiesFalseValidator) desc() *validatorDesc {
+	imports := []packageImport{}
+	if len(v.patternExprs) > 0 {
+		imports = append(imports, packageImport{qualifiedName: "regexp"})
+	}
+	return &validatorDesc{
+		hasError:            true,
+		beforeJSONUnmarshal: true,
+		imports:             imports,
+	}
+}
+
+// unevaluatedProperties: { "$ref": ... }
+// Validates any unevaluated property against the referenced schema/type.
+type unevaluatedPropertiesSchemaValidator struct {
+	declName     string
+	allowedKeys  []string
+	patternExprs []string
+	valueType    codegen.Type
+}
+
+func (v *unevaluatedPropertiesSchemaValidator) generate(out *codegen.Emitter, format string) error {
+	out.Printlnf("{")
+	out.Indent(1)
+	out.Printlnf("allowed := map[string]struct{}{")
+	out.Indent(1)
+	for _, k := range v.allowedKeys {
+		out.Printlnf("%q: {},", k)
+	}
+	out.Indent(-1)
+	out.Printlnf("}")
+	out.Printlnf("for k := range %s {", varNameRawMap)
+	out.Indent(1)
+	out.Printlnf("if _, ok := allowed[k]; ok { continue }")
+	if len(v.patternExprs) > 0 {
+		out.Printlnf("matched := false")
+		out.Printlnf("patterns := make([]*regexp.Regexp, 0, %d)", len(v.patternExprs))
+		for _, p := range v.patternExprs {
+			out.Printlnf("if re, err := regexp.Compile(%q); err == nil { patterns = append(patterns, re) }", p)
+		}
+		out.Printlnf("for _, re := range patterns { if re.MatchString(k) { matched = true; break } }")
+		out.Printlnf("if matched { continue }")
+	}
+	out.Printlnf("b, _ := json.Marshal(%s[k])", varNameRawMap)
+	out.Printf("var v ")
+	if err := v.valueType.Generate(out); err != nil {
+		return err
+	}
+	out.Newline()
+	out.Printlnf("if err := json.Unmarshal(b, &v); err != nil {")
+	out.Indent(1)
+	out.Printlnf(`return fmt.Errorf("field %%s in %s: invalid", k)`, v.declName)
+	out.Indent(-1)
+	out.Printlnf("}")
+	out.Indent(-1)
+	out.Printlnf("}")
+	out.Indent(-1)
+	out.Printlnf("}")
+
+	return nil
+}
+
+func (v *unevaluatedPropertiesSchemaValidator) desc() *validatorDesc {
 	imports := []packageImport{}
 	if len(v.patternExprs) > 0 {
 		imports = append(imports, packageImport{qualifiedName: "regexp"})

@@ -377,6 +377,35 @@ func (g *schemaGenerator) generateDeclaredType(t *schemas.Type, scope nameScope)
 			}
 		}
 
+		// unevaluatedProperties: { "$ref": ... } (draft 2019-09)
+		if t.UnevaluatedProperties != nil && t.UnevaluatedProperties.Ref != "" && t.AdditionalProperties == nil {
+			allowed := make([]string, 0, len(t.Properties))
+			for _, name := range sortedKeys(t.Properties) {
+				allowed = append(allowed, name)
+			}
+
+			patterns := make([]string, 0, len(t.PatternProperties))
+			for _, pat := range sortedKeys(t.PatternProperties) {
+				patterns = append(patterns, pat)
+			}
+
+			valType, err := g.generateTypeInline(t.UnevaluatedProperties, scope.add("UnevaluatedValue"))
+			if err != nil {
+				return nil, fmt.Errorf("could not generate type for unevaluatedProperties: %w", err)
+			}
+
+			validators = append(validators, &unevaluatedPropertiesSchemaValidator{
+				declName:     decl.Name,
+				allowedKeys:  allowed,
+				patternExprs: patterns,
+				valueType:    valType,
+			})
+
+			if len(patterns) > 0 {
+				g.output.file.Package.AddImport("regexp", "")
+			}
+		}
+
 		if t.IsSubSchemaTypeElem() || len(validators) > 0 {
 			g.generateUnmarshaler(decl, validators)
 		}
