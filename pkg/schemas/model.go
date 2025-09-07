@@ -166,8 +166,13 @@ type Type struct {
 	Properties           map[string]*Type `json:"properties,omitempty"`           // Section 5.16.
 	PatternProperties    map[string]*Type `json:"patternProperties,omitempty"`    // Section 5.17.
 	AdditionalProperties *Type            `json:"additionalProperties,omitempty"` // Section 5.18.
-	Enum                 []interface{}    `json:"enum,omitempty"`                 // Section 5.20.
-	Type                 TypeList         `json:"type,omitempty"`                 // Section 5.21.
+	// Draft 2019-09: unevaluatedProperties
+	// When set to boolean false, disallows properties that are not
+	// evaluated by properties/patternProperties or other applicators.
+	// Boolean schemas are supported via Type.UnmarshalJSON.
+	UnevaluatedProperties *Type         `json:"unevaluatedProperties,omitempty"`
+	Enum                  []interface{} `json:"enum,omitempty"` // Section 5.20.
+	Type                  TypeList      `json:"type,omitempty"` // Section 5.21.
 	// RFC draft-bhutton-json-schema-01, section 10.
 	AllOf []*Type `json:"allOf,omitempty"` // Section 10.2.1.1.
 	AnyOf []*Type `json:"anyOf,omitempty"` // Section 10.2.1.2.

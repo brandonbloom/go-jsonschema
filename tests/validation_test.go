@@ -1,9 +1,9 @@
 package tests_test
 
 import (
-	"encoding/json"
-	"errors"
-	"testing"
+    "encoding/json"
+    "errors"
+    "testing"
 
 	testExclusiveMaximum "github.com/atombender/go-jsonschema/tests/data/validation/exclusiveMaximum"
 	testExclusiveMinimum "github.com/atombender/go-jsonschema/tests/data/validation/exclusiveMinimum"
@@ -15,10 +15,11 @@ import (
 	testPattern "github.com/atombender/go-jsonschema/tests/data/validation/pattern"
 	testPrimitiveDefs "github.com/atombender/go-jsonschema/tests/data/validation/primitive_defs"
 	testReadOnlyFields "github.com/atombender/go-jsonschema/tests/data/validation/readOnly"
-	testReadOnlyAndRequiredFields "github.com/atombender/go-jsonschema/tests/data/validation/readOnlyAndRequired"
-	testRequiredFields "github.com/atombender/go-jsonschema/tests/data/validation/requiredFields"
-	testReadOnlyValidationDisabledFields "github.com/atombender/go-jsonschema/tests/data/validationDisabled/readOnly"
-	"github.com/atombender/go-jsonschema/tests/helpers"
+    testReadOnlyAndRequiredFields "github.com/atombender/go-jsonschema/tests/data/validation/readOnlyAndRequired"
+    testRequiredFields "github.com/atombender/go-jsonschema/tests/data/validation/requiredFields"
+    testReadOnlyValidationDisabledFields "github.com/atombender/go-jsonschema/tests/data/validationDisabled/readOnly"
+    testUnevaluatedProps "github.com/atombender/go-jsonschema/tests/data/validation/unevaluatedProperties"
+    "github.com/atombender/go-jsonschema/tests/helpers"
 )
 
 func TestMaxStringLength(t *testing.T) {
@@ -246,6 +247,40 @@ func TestReadOnlyAndRequiredFields(t *testing.T) {
 			helpers.CheckError(t, tC.wantErr, err)
 		})
 	}
+}
+
+func TestUnevaluatedPropertiesFalse(t *testing.T) {
+    t.Parallel()
+
+    testCases := []struct {
+        desc    string
+        data    string
+        wantErr error
+    }{
+        {
+            desc:    "object with only known property passes",
+            data:    `{"known": "ok"}`,
+            wantErr: nil,
+        },
+        {
+            desc:    "object with patternProperties key passes",
+            data:    `{"known": "ok", "p_key": 1}`,
+            wantErr: nil,
+        },
+        {
+            desc:    "object with unevaluated property fails",
+            data:    `{"known": "ok", "extra": 1}`,
+            wantErr: errors.New("field extra in UnevaluatedProperties: unevaluated"),
+        },
+    }
+    for _, tc := range testCases {
+        t.Run(tc.desc, func(t *testing.T) {
+            t.Parallel()
+            model := testUnevaluatedProps.UnevaluatedProperties{}
+            err := json.Unmarshal([]byte(tc.data), &model)
+            helpers.CheckError(t, tc.wantErr, err)
+        })
+    }
 }
 
 func TestPattern(t *testing.T) {

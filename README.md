@@ -155,6 +155,7 @@ only specific validations remain to be fully implemented.
     * [ ] `propertyNames`
     * [ ] `maxProperties`
     * [ ] `minProperties`
+    * [x] `unevaluatedProperties` (boolean `false` only)
   * [ ] Conditional subschemas (§6.6)
     * [ ] `if`
     * [ ] `then`

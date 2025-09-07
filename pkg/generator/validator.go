@@ -32,6 +32,7 @@ type validatorDesc struct {
 var (
 	_ validator = new(requiredValidator)
 	_ validator = new(readOnlyValidator)
+	_ validator = new(unevaluatedPropertiesFalseValidator)
 	_ validator = new(nullTypeValidator)
 	_ validator = new(defaultValidator)
 	_ validator = new(arrayValidator)
@@ -89,6 +90,60 @@ func (v *readOnlyValidator) desc() *validatorDesc {
 	return &validatorDesc{
 		hasError:            true,
 		beforeJSONUnmarshal: true,
+	}
+}
+
+// unevaluatedProperties: false
+// Rejects any object properties that are not covered by properties or patternProperties.
+type unevaluatedPropertiesFalseValidator struct {
+	declName     string
+	allowedKeys  []string
+	patternExprs []string
+}
+
+func (v *unevaluatedPropertiesFalseValidator) generate(out *codegen.Emitter, format string) error {
+	// Build allowed exact-name set.
+	out.Printlnf("{")
+	out.Indent(1)
+	out.Printlnf("allowed := map[string]struct{}{")
+	out.Indent(1)
+	for _, k := range v.allowedKeys {
+		out.Printlnf("%q: {},", k)
+	}
+	out.Indent(-1)
+	out.Printlnf("}")
+
+	// Iterate raw keys and reject those not allowed nor matching patterns.
+	out.Printlnf("for k := range %s {", varNameRawMap)
+	out.Indent(1)
+	out.Printlnf("if _, ok := allowed[k]; ok { continue }")
+	if len(v.patternExprs) > 0 {
+		out.Printlnf("matched := false")
+		out.Printlnf("patterns := make([]*regexp.Regexp, 0, %d)", len(v.patternExprs))
+		for _, p := range v.patternExprs {
+			out.Printlnf("if re, err := regexp.Compile(%q); err == nil { patterns = append(patterns, re) }", p)
+		}
+		out.Printlnf("for _, re := range patterns { if re.MatchString(k) { matched = true; break } }")
+		out.Printlnf("if matched { continue }")
+	}
+	out.Printlnf(`return fmt.Errorf("field %%s in %s: unevaluated", k)`, v.declName)
+	out.Indent(-1)
+	out.Printlnf("}")
+	out.Indent(-1)
+	out.Printlnf("}")
+
+	return nil
+}
+
+func (v *unevaluatedPropertiesFalseValidator) desc() *validatorDesc {
+	imports := []packageImport{}
+	if len(v.patternExprs) > 0 {
+		imports = append(imports, packageImport{qualifiedName: "regexp"})
+	}
+	return &validatorDesc{
+		hasError:            true,
+		beforeJSONUnmarshal: true,
+		imports:             imports,
 	}
 }
 

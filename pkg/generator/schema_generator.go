@@ -352,6 +352,31 @@ func (g *schemaGenerator) generateDeclaredType(t *schemas.Type, scope nameScope)
 			validators = g.structFieldValidators(validators, f, f.Type, false)
 		}
 
+		// unevaluatedProperties: false (draft 2019-09)
+		// Skip when additionalProperties is present, since those extra keys
+		// are evaluated by that schema per spec.
+		if t.UnevaluatedProperties != nil && t.UnevaluatedProperties.Not != nil && t.AdditionalProperties == nil {
+			allowed := make([]string, 0, len(t.Properties))
+			for _, name := range sortedKeys(t.Properties) {
+				allowed = append(allowed, name)
+			}
+
+			patterns := make([]string, 0, len(t.PatternProperties))
+			for _, pat := range sortedKeys(t.PatternProperties) {
+				patterns = append(patterns, pat)
+			}
+
+			validators = append(validators, &unevaluatedPropertiesFalseValidator{
+				declName:     decl.Name,
+				allowedKeys:  allowed,
+				patternExprs: patterns,
+			})
+
+			if len(patterns) > 0 {
+				g.output.file.Package.AddImport("regexp", "")
+			}
+		}
+
 		if t.IsSubSchemaTypeElem() || len(validators) > 0 {
 			g.generateUnmarshaler(decl, validators)
 		}
